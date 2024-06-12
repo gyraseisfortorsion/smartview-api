@@ -1,0 +1,11 @@
+--2024-05-20 21:19:57--  https://www.nvidia.com/content/DriverDownloads/confirmation.php?url=/tesla/440.95.01/NVIDIA-Linux-x86_64-440.95.01.run
+Resolving www.nvidia.com (www.nvidia.com)... 139.45.207.56, 139.45.207.90
+Connecting to www.nvidia.com (www.nvidia.com)|139.45.207.56|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 2619 (2.6K) [text/html]
+Saving to: ‘confirmation.php?url=%2Ftesla%2F440.95.01%2FNVIDIA-Linux-x86_64-440.95.01.run’
+
+               confirmation.ph   0%[                                                  ]       0  --.-KB/s               confirmation.php?url=%2Ftesla% 100%[=================================================>]   2.56K  --.-KB/s    in 0s      
+
+2024-05-20 21:19:57 (412 MB/s) - ‘confirmation.php?url=%2Ftesla%2F440.95.01%2FNVIDIA-Linux-x86_64-440.95.01.run’ saved [2619/2619]
+

@@ -1,0 +1,7 @@
+env
+.env
+cv
+model_c.zip
+best.pt
+prod.env
+videomae_weights/
