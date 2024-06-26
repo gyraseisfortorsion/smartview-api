@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Header, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from models import User, HeapLeachingPad, Wobbler, Flights, Breakage, TimePeriod, PadCreate
-from sqlalchemy import create_engine, func, and_
+from sqlalchemy import create_engine, func, and_, cast, Date
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from db import *
@@ -9,19 +9,23 @@ import classificator, detector
 import os
 from settings import config
 import httpx
+from typing import Optional
+from datetime import datetime, timedelta
 from fastapi.responses import FileResponse
 app = FastAPI()
 @app.get('/')
 async def root():
     return {"message": "Hello World"}
 
-# @app.get('/api/get_logs/')
+
+@app.get('/api/get_logs/')
 async def get_last_flight_from_airdata():
     url = "https://api.airdata.com/flights?sort=time"
     auth = ('ad_2DiijUW6ecnT5ZuRib7amdMKJAwrg', '')
     timeout = 10.0  # Timeout limit in seconds
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, auth=auth)
+        # print(response)
         csv_link = response.json()["data"][-1]["csvLink"]
         file_response = await client.get(csv_link)
         
@@ -72,6 +76,48 @@ async def get_fields(db: Session = Depends(get_db)):
 #     last_week = today - timedelta(days=7)
 #     breakages_last_week = db.query(Breakage).filter(Breakage.time_of_detection >= last_week, Breakage.time_of_detection < today).all()
 #     return breakages_last_week
+
+
+
+@app.get('/api/wobblers/breakages/by_field', tags=["All pads"])
+async def get_breakages_by_field(
+    db: Session = Depends(get_db),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    query = db.query(HeapLeachingPad, func.count(Breakage.id)).join(Breakage)
+
+    if date_from:
+        query = query.filter(Breakage.time_of_detection >= date_from)
+    if date_to:
+        query = query.filter(Breakage.time_of_detection <= date_to)
+
+    breakages_by_field = query.group_by(HeapLeachingPad.id).all()
+
+    # Convert the HeapLeachingPad objects to dictionaries
+    breakages_by_field = [{"field_id": heap_leaching_pad.id, "breakages": count} for heap_leaching_pad, count in breakages_by_field]
+    return breakages_by_field
+
+
+@app.get('/api/wobblers/breakages/efficiency', tags=["All pads"], description="Get the efficiency of each field based on the number of breakages and wobblers, returns field id and its efficiency")
+async def get_breakages_efficiency(db: Session = Depends(get_db)):
+    # Query the number of breakages and wobblers for each field
+    breakages_by_field = db.query(HeapLeachingPad, func.count(Breakage.id)).join(Breakage).group_by(HeapLeachingPad.id).all()
+    wobblers_by_field = db.query(HeapLeachingPad, func.count(Wobbler.id)).join(Wobbler).group_by(HeapLeachingPad.id).all()
+
+    # Convert the query results to dictionaries for easier access
+    breakages_by_field = {heap_leaching_pad.id: count for heap_leaching_pad, count in breakages_by_field}
+    wobblers_by_field = {heap_leaching_pad.id: count for heap_leaching_pad, count in wobblers_by_field}
+
+    # Calculate the efficiency for each field
+    efficiencies = []
+    for field_id in wobblers_by_field.keys():
+        count_breakages = breakages_by_field.get(field_id, 0)
+        count_wobblers = wobblers_by_field[field_id]
+        efficiency = 1 - count_breakages / count_wobblers
+        efficiencies.append({"field_id": field_id, "efficiency": efficiency})
+
+    return efficiencies
 
 @app.get('/api/wobblers/breakages_this_month', tags=["All pads"])
 async def get_breakages_this_month(db: Session = Depends(get_db)):
@@ -156,6 +202,40 @@ async def get_wobblers(heap_leaching_pad_id:int, db: Session = Depends(get_db)):
 async def get_breakages_count_per_date(heap_leaching_pad_id: int, period: TimePeriod, db: Session = Depends(get_db)):
     breakages_count_per_date = db.query(func.date(Breakage.time_of_detection), func.count(Breakage.id)).filter(Breakage.heap_leaching_pad_id==heap_leaching_pad_id, Breakage.time_of_detection >= period.start, Breakage.time_of_detection < period.end).group_by(func.date(Breakage.time_of_detection)).all()
     return breakages_count_per_date
+
+
+
+@app.get('/api/breakages/count/{heap_leaching_pad_id}', tags=["07:Per heap leaching pad"])
+async def get_breakages_count(
+    heap_leaching_pad_id: int, 
+    db: Session = Depends(get_db),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    # If no date range is provided, default to the last 30 days
+    if not date_from:
+        date_from = datetime.now() - timedelta(days=30)
+    if not date_to:
+        date_to = datetime.now()
+
+    # Query the number of breakages per day
+    query = (
+        db.query(
+            func.count(Breakage.id),
+            cast(Breakage.time_of_detection, Date)
+        )
+        .filter(
+            Breakage.heap_leaching_pad_id == heap_leaching_pad_id,
+            Breakage.time_of_detection >= date_from,
+            Breakage.time_of_detection <= date_to
+        )
+        .group_by(cast(Breakage.time_of_detection, Date))
+        .all()
+    )
+
+    # Convert the query result to a list of dictionaries
+    breakages_count = [{"date": date.isoformat(), "count": count} for count, date in query]
+    return breakages_count
 
 @app.get('/api/breakages/{heap_leaching_pad_id}', tags=["07:Per heap leaching pad"])
 async def get_breakages(heap_leaching_pad_id: int, db: Session = Depends(get_db)):

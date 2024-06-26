@@ -30,6 +30,9 @@ class HeapLeachingPad(Base):
     breakages = relationship('Breakage', back_populates='heap_leaching_pad')
     flights = relationship('Flights', back_populates = 'heap_leaching_pad')
 
+    def _asdict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 class StatusEnum(Enum):
     SPINNING = 'spinning'
     NOT_SPINNING = 'not_spinning'
