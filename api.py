@@ -19,16 +19,32 @@ async def root():
 
 
 @app.get('/api/get_logs/')
-async def get_last_flight_from_airdata():
-    url = "https://api.airdata.com/flights?sort=time"
+async def get_last_flight_from_airdata(start: Optional[str] = None, end: Optional[str] = None):
+    url = "https://api.airdata.com/flights"
     auth = ('ad_2DiijUW6ecnT5ZuRib7amdMKJAwrg', '')
     timeout = 10.0  # Timeout limit in seconds
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, auth=auth)
-        # print(response)
-        csv_link = response.json()["data"][-1]["csvLink"]
-        file_response = await client.get(csv_link)
+        # print(response.json()["data"])
         
+        data = response.json()["data"]
+        
+        # Convert start and end to datetime objects
+        start_date = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+        end_date = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+
+        # Find the first object whose 'time' is within the range
+        iter=0
+        for obj in data:
+            obj_time = datetime.strptime(obj["time"], "%Y-%m-%d %H:%M:%S")
+            # print(obj_time, start_date, end_date)
+            if start_date <= obj_time <= end_date:
+                print(obj)
+                csv_link = response.json()["data"][iter]["csvLink"]
+                file_response = await client.get(csv_link)
+                break
+            iter+=1
+
     # Define the local file path where you want to save the file
     file_path = "flight_logs.csv"
 
@@ -321,6 +337,7 @@ async def get_efficiency(heap_leaching_pad_id:int, db: Session = Depends(get_db)
 @app.post('/api/load_data', tags=["07:Per heap leaching pad"])
 async def load_data(csv_file: UploadFile = File(...), video_file: UploadFile = File(...), db: Session = Depends(get_db)):
     csv_path = f"./{csv_file.filename}"
+    os.remove(csv_path)
     video_path = f"./{video_file.filename}"
     # csv_path = "May-17th-2024-03-08PM-Flight-Airdata.csv"
     # video_path="MAX_0004_02_27.MP4"

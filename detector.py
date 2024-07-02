@@ -18,12 +18,17 @@ from geopy.distance import geodesic
 import glob
 from PIL import Image
 import ffmpeg
-
+from datetime import datetime, timedelta
+import httpx
 class Detector:
 	
 	def __init__(self, csv_file, video_path):
 		self.video_path = video_path
 
+		log_date_range = self.extract_timestamps()
+		print("log_date_range", log_date_range)
+		self.csv_file = self.get_logs(log_date_range[0], log_date_range[1])
+		print("csv_file", self.csv_file)
 		observations = pd.read_csv(csv_file)
 		# observations = observations[observations['isVideo'] == 1]
 
@@ -155,6 +160,68 @@ class Detector:
 
 		return first_minute_second, last_minute_second, first_gps, last_gps
 	
+	def extract_timestamps(self):
+		srt_text =  self.video_path + ".SRT"
+		with open(srt_text, 'r') as file:
+			srt_content = file.read()
+
+		# Split the .srt file into subtitle blocks
+		subtitle_blocks = srt_content.strip().split('\n\n')
+
+		# Regular expression to match global time and GPS data
+		global_time_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:(\d{2}):(\d{2})"
+
+		if subtitle_blocks:
+			# Extract global time and GPS from the first entry
+			first_block = subtitle_blocks[0]
+			first_global_time_match = re.search(global_time_pattern, first_block)
+			timestamp_str = first_global_time_match.group(0)
+
+			# Convert the timestamp string to a datetime object
+			timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+
+			# Calculate the time range
+			time_range = (timestamp - timedelta(minutes=1), timestamp + timedelta(minutes=1))
+
+			# Convert the time range to strings
+			time_range_str = (time_range[0].strftime("%Y-%m-%d %H:%M:%S"), time_range[1].strftime("%Y-%m-%d %H:%M:%S"))
+
+			return time_range_str
+	
+	def get_logs(self, start, end):
+		url = "https://api.airdata.com/flights"
+		auth = ('ad_2DiijUW6ecnT5ZuRib7amdMKJAwrg', '')
+		timeout = 10.0  # Timeout limit in seconds
+		with httpx.AsyncClient(timeout=timeout) as client:
+			response = client.get(url, auth=auth)
+			# print(response.json()["data"])
+			
+			data = response.json()["data"]
+			
+			# Convert start and end to datetime objects
+			start_date = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+			end_date = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+
+			# Find the first object whose 'time' is within the range
+			iter=0
+			for obj in data:
+				obj_time = datetime.strptime(obj["time"], "%Y-%m-%d %H:%M:%S")
+				# print(obj_time, start_date, end_date)
+				if start_date <= obj_time <= end_date:
+					print(obj)
+					csv_link = response.json()["data"][iter]["csvLink"]
+					file_response = client.get(csv_link)
+					break
+				iter+=1
+
+		# Define the local file path where you want to save the file
+		file_path = "flight_logs.csv"
+		# self.csv_file = file_path
+		# Write the content of the response to a file
+		with open(file_path, 'wb') as f:
+			f.write(file_response.content)
+
+		return file_path
 	def find_closest_row(self, df, target_minute_second, target_gps):
 
 		def extract_minute_second(datetime_str):
@@ -335,21 +402,34 @@ class Detector:
 
 
 		previous_timestamp = self.timestamps[0] - (self.timestamps[1] - self.timestamps[0])
+		previous_video_time = 0
 		i = 0
 		while cap.isOpened() and i < len(self.timestamps):
 
-			time_difference = self.timestamps[i] - previous_timestamp
-			frame_difference = round(time_difference / 1000 * fps)
-			target_frame_number = current_frame_number + frame_difference
+			# time_difference = self.timestamps[i] - previous_timestamp
+			# frame_difference = round(time_difference / 1000 * fps)
+			# target_frame_number = current_frame_number + frame_difference
 
-			while current_frame_number < target_frame_number and cap.isOpened():
-				success, frame = cap.read()
-				if not success:
-					break
-				current_frame_number += 1
+			# while current_frame_number < target_frame_number and cap.isOpened():
+			# 	success, frame = cap.read()
+			# 	if not success:
+			# 		break
+			# 	current_frame_number += 1
+
+			# if not success:
+			# 	break
+			success, frame = cap.read()
 
 			if not success:
 				break
+
+			current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) + previous_video_time
+			time_difference = abs(current_time_ms-self.timestamps[i])
+            # print("time difference: ", time_difference)
+
+            # print(f"{current_time_ms=} {timestamps[i]=}")
+			if time_difference < 5 or current_time_ms >= self.timestamps[i]:
+				i += 1
 
 			if cv2.waitKey(1) & 0xFF == ord('q'):
 				break
@@ -439,6 +519,7 @@ class Detector:
 			# cv2.imshow("GPS by Pixel", final_image)
 
 			previous_timestamp = self.timestamps[i]
+			previous_video_time = current_time_ms
 			i += 1
 
 
@@ -452,9 +533,10 @@ class Detector:
 				additional_frames = [video_frames[i * len(video_frames) // additional_frames_needed] for i in range(additional_frames_needed)]
 				video_frames = repeated_sequence + additional_frames
 			elif num_frames > 16:
-				# If more than 16 frames, select 16 evenly spaced frames from the list
-				frame_indices = np.linspace(0, num_frames - 1, 16, dtype=int)
-				video_frames = [video_frames[index] for index in frame_indices]
+				# # If more than 16 frames, select 16 evenly spaced frames from the list
+				# frame_indices = np.linspace(0, num_frames - 1, 16, dtype=int)
+				# video_frames = [video_frames[index] for index in frame_indices]
+				pass
 			return video_frames
 
 		def verify_video_frames(video_path):
