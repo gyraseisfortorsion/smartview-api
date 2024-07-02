@@ -20,11 +20,14 @@ from PIL import Image
 import ffmpeg
 from datetime import datetime, timedelta
 import httpx
+import requests
 class Detector:
 	
 	def __init__(self, csv_file, video_path):
 		self.video_path = video_path
-
+		srt_path = video_path + ".SRT"
+		if not os.path.exists(srt_path):
+			self.extract_srt(video_path, video_path)
 		log_date_range = self.extract_timestamps()
 		print("log_date_range", log_date_range)
 		self.csv_file = self.get_logs(log_date_range[0], log_date_range[1])
@@ -39,8 +42,6 @@ class Detector:
 			# video_path = r"MAX_0004.MP4"
 			srt_path = video_path + ".SRT"
 
-			if not os.path.exists(srt_path):
-				self.extract_srt(video_path, video_path)
 			first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(video_path+".SRT")
 
 			observations = self.update_is_video_column(observations, first_time_tuple, last_time_tuple, first_gps, second_gps)
@@ -181,45 +182,79 @@ class Detector:
 			timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
 
 			# Calculate the time range
-			time_range = (timestamp - timedelta(minutes=1), timestamp + timedelta(minutes=1))
+			time_range = (timestamp - timedelta(minutes=4), timestamp + timedelta(minutes=1))
 
 			# Convert the time range to strings
 			time_range_str = (time_range[0].strftime("%Y-%m-%d %H:%M:%S"), time_range[1].strftime("%Y-%m-%d %H:%M:%S"))
 
 			return time_range_str
 	
+	# def get_logs(self, start, end):
+	# 	url = "https://api.airdata.com/flights"
+	# 	auth = ('ad_2DiijUW6ecnT5ZuRib7amdMKJAwrg', '')
+	# 	timeout = 10.0  # Timeout limit in seconds
+	# 	with httpx.AsyncClient(timeout=timeout) as client:
+	# 		response = client.get(url, auth=auth)
+	# 		# print(response.json()["data"])
+			
+	# 		data = response.json()["data"]
+			
+	# 		# Convert start and end to datetime objects
+	# 		start_date = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+	# 		end_date = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+
+	# 		# Find the first object whose 'time' is within the range
+	# 		iter=0
+	# 		for obj in data:
+	# 			obj_time = datetime.strptime(obj["time"], "%Y-%m-%d %H:%M:%S")
+	# 			# print(obj_time, start_date, end_date)
+	# 			if start_date <= obj_time <= end_date:
+	# 				print(obj)
+	# 				csv_link = response.json()["data"][iter]["csvLink"]
+	# 				file_response = client.get(csv_link)
+	# 				break
+	# 			iter+=1
+
+	# 	# Define the local file path where you want to save the file
+	# 	file_path = "flight_logs.csv"
+	# 	# self.csv_file = file_path
+	# 	# Write the content of the response to a file
+	# 	with open(file_path, 'wb') as f:
+	# 		f.write(file_response.content)
+
+	# 	return file_path
+
 	def get_logs(self, start, end):
 		url = "https://api.airdata.com/flights"
 		auth = ('ad_2DiijUW6ecnT5ZuRib7amdMKJAwrg', '')
 		timeout = 10.0  # Timeout limit in seconds
-		with httpx.AsyncClient(timeout=timeout) as client:
-			response = client.get(url, auth=auth)
-			# print(response.json()["data"])
-			
-			data = response.json()["data"]
-			
-			# Convert start and end to datetime objects
-			start_date = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
-			end_date = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
 
-			# Find the first object whose 'time' is within the range
-			iter=0
-			for obj in data:
-				obj_time = datetime.strptime(obj["time"], "%Y-%m-%d %H:%M:%S")
-				# print(obj_time, start_date, end_date)
-				if start_date <= obj_time <= end_date:
-					print(obj)
-					csv_link = response.json()["data"][iter]["csvLink"]
-					file_response = client.get(csv_link)
-					break
-				iter+=1
+		response = requests.get(url, auth=auth, timeout=timeout)
+		data = response.json()["data"]
+
+		# Convert start and end to datetime objects
+		start_date = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+		end_date = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+		file_path = "flight_logs.csv"
+		# Find the first object whose 'time' is within the range
+		iter = 0
+		for obj in data:
+			obj_time = datetime.strptime(obj["time"], "%Y-%m-%d %H:%M:%S")
+			if start_date <= obj_time <= end_date:
+				print(obj)
+				csv_link = response.json()["data"][iter]["csvLink"]
+				file_response = requests.get(csv_link)
+				print(file_response)
+				with open(file_path, 'wb') as f:
+					f.write(file_response.content)
+				break
+			iter += 1
 
 		# Define the local file path where you want to save the file
-		file_path = "flight_logs.csv"
-		# self.csv_file = file_path
+		
+
 		# Write the content of the response to a file
-		with open(file_path, 'wb') as f:
-			f.write(file_response.content)
+		
 
 		return file_path
 	def find_closest_row(self, df, target_minute_second, target_gps):
