@@ -32,8 +32,9 @@ class Detector:
 		log_date_range = self.extract_timestamps()
 		print("log_date_range", log_date_range)
 		self.csv_file = self.get_logs(log_date_range[0], log_date_range[1])
+		self.csv_file= csv_file
 		print("csv_file", self.csv_file)
-		observations = pd.read_csv(csv_file)
+		observations = pd.read_csv(self.csv_file)
 		# observations = observations[observations['isVideo'] == 1]
 
 

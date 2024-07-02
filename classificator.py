@@ -54,6 +54,7 @@ class Detector():
     def __init__(self, video_path, csv_file, srt_path):
         self.srt_path = srt_path
         self.video_path = video_path
+        csv_file='flight_logs.csv'
         observations = pd.read_csv(csv_file)
 		# observations = observations[observations['isVideo'] == 1]
 
