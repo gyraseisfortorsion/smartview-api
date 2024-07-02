@@ -23,11 +23,12 @@ import httpx
 import requests
 class Detector:
 	
-	def __init__(self, csv_file, video_path):
+	def __init__(self, csv_file, video_path, srt_path):
 		self.video_path = video_path
-		srt_path = video_path + ".SRT"
-		if not os.path.exists(srt_path):
-			self.extract_srt(video_path, video_path)
+		self.srt_path = srt_path
+		# srt_path = video_path + ".SRT"
+		# if not os.path.exists(srt_path):
+		# 	self.extract_srt(video_path, video_path)
 		log_date_range = self.extract_timestamps()
 		print("log_date_range", log_date_range)
 		self.csv_file = self.get_logs(log_date_range[0], log_date_range[1])
@@ -40,9 +41,9 @@ class Detector:
 		if (observations['isVideo'] == 1).any() == False:
 			print("test")
 			# video_path = r"MAX_0004.MP4"
-			srt_path = video_path + ".SRT"
+			# srt_path = video_path + ".SRT"
 
-			first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(video_path+".SRT")
+			first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(self.srt_path)
 
 			observations = self.update_is_video_column(observations, first_time_tuple, last_time_tuple, first_gps, second_gps)
 			observations.to_csv("test.csv", index=False)
@@ -162,7 +163,9 @@ class Detector:
 		return first_minute_second, last_minute_second, first_gps, last_gps
 	
 	def extract_timestamps(self):
-		srt_text =  self.video_path + ".SRT"
+		# srt_text =  self.video_path + ".SRT"
+
+		srt_text = self.srt_path
 		with open(srt_text, 'r') as file:
 			srt_content = file.read()
 

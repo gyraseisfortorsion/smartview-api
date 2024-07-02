@@ -51,7 +51,8 @@ from torchvision.transforms import (
     Resize,
 )
 class Detector():
-    def __init__(self, video_path, csv_file):
+    def __init__(self, video_path, csv_file, srt_path):
+        self.srt_path = srt_path
         self.video_path = video_path
         observations = pd.read_csv(csv_file)
 		# observations = observations[observations['isVideo'] == 1]
@@ -61,12 +62,13 @@ class Detector():
         if (observations['isVideo'] == 1).any() == False:
             print("test")
             # video_path = r"MAX_0004.MP4"
-            srt_path = video_path + ".SRT"
+            # srt_path = video_path + ".SRT"
+            
 
-            if not os.path.exists(srt_path):
-                self.extract_srt(video_path, video_path)
+            # if not os.path.exists(srt_path):
+            #     self.extract_srt(video_path, video_path)
 
-            first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(video_path+".SRT")
+            first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(self.srt_path)
 
             observations = self.update_is_video_column(observations, first_time_tuple, last_time_tuple, first_gps, second_gps)
             observations.to_csv("test.csv", index=False)

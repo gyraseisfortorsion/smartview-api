@@ -335,20 +335,21 @@ async def get_efficiency(heap_leaching_pad_id:int, db: Session = Depends(get_db)
     return 1-count_breakages/count_wobblers
 
 @app.post('/api/load_data', tags=["07:Per heap leaching pad"])
-async def load_data(video_file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = File(...), db: Session = Depends(get_db)):
     # csv_path = f"./{csv_file.filename}"
     video_path = f"./{video_file.filename}"
+    srt_path = f"./{srt_file.filename}"
     csv_path = "May-17th-2024-03-08PM-Flight-Airdata.csv"
     # video_path="MAX_0004_02_27.MP4"
     # save video and csv file locally
-    # if not os.path.exists(csv_path):
-    #     with open(csv_path, "wb") as file:
-    #         file.write(csv_file.file.read())
+    if not os.path.exists(srt_path):
+        with open(csv_path, "wb") as file:
+            file.write(srt_file.file.read())
     if not os.path.exists(video_path):
         with open(video_path, "wb") as file:
             file.write(video_file.file.read())
         
-    detection =  detector.Detector(csv_path, video_path)
+    detection =  detector.Detector(csv_path, video_path, srt_path)
     classification = classificator.Detector(video_path, csv_path)
     detection.start_detection()
     classification.start_classification()
