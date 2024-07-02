@@ -350,7 +350,7 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
             file.write(video_file.file.read())
         
     detection =  detector.Detector(csv_path, video_path, srt_path)
-    classification = classificator.Detector(video_path, csv_path)
+    classification = classificator.Detector(video_path, csv_path, srt_path)
     detection.start_detection()
     classification.start_classification()
     
