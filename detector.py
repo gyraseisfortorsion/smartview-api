@@ -23,7 +23,7 @@ import httpx
 import requests
 class Detector:
 	
-	def __init__(self, csv_file, video_path, srt_path):
+	def __init__(self, video_path, srt_path):
 		self.video_path = video_path
 		self.srt_path = srt_path
 		# srt_path = video_path + ".SRT"
@@ -32,24 +32,25 @@ class Detector:
 		log_date_range = self.extract_timestamps()
 		print("log_date_range", log_date_range)
 		self.csv_file = self.get_logs(log_date_range[0], log_date_range[1])
-		self.csv_file= csv_file
 		print("csv_file", self.csv_file)
 		observations = pd.read_csv(self.csv_file)
 		# observations = observations[observations['isVideo'] == 1]
 
+		# if (observations['isVideo'] == 1).any() == False:
+		# 	print("test")
+		# 	# video_path = r"MAX_0004.MP4"
+		# 	# srt_path = video_path + ".SRT"
 
+		# 	first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(self.srt_path)
 
-		if (observations['isVideo'] == 1).any() == False:
-			print("test")
-			# video_path = r"MAX_0004.MP4"
-			# srt_path = video_path + ".SRT"
+		# 	observations = self.update_is_video_column(observations, first_time_tuple, last_time_tuple, first_gps, second_gps)
+		# 	observations.to_csv("test.csv", index=False)
 
-			first_time_tuple, last_time_tuple, first_gps, second_gps = self.extract_minute_second_gps_from_global_time(self.srt_path)
-
-			observations = self.update_is_video_column(observations, first_time_tuple, last_time_tuple, first_gps, second_gps)
-			observations.to_csv("test.csv", index=False)
+		# print(observations['time(millisecond)'])
+		# return None
 
 		observations = observations[observations['isVideo'] == 1]
+		observations['time(millisecond)'] -= list(observations['time(millisecond)'])[0] # to start from 0
 
 		values = [ "time(millisecond)", "latitude", "longitude", " compass_heading(degrees)", "gimbal_heading(degrees)", "ascent(feet)", 'datetime(utc)']
 		self.observations = observations.loc[:, values]
@@ -60,6 +61,8 @@ class Detector:
 		self.altidutes = list(observations["ascent(feet)"])
 		self.datetime_logs = list(observations["datetime(utc)"])
 
+		# print(observations['time(millisecond)'])
+		# return None
 
 		# Initialize boundaries
 		self.top, self.bottom, self.left, self.right = -np.inf, np.inf, np.inf, -np.inf
@@ -462,11 +465,11 @@ class Detector:
 			if not success:
 				break
 
-			current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) + previous_video_time
+			current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) # + previous_video_time
 			time_difference = abs(current_time_ms-self.timestamps[i])
-            # print("time difference: ", time_difference)
+			# print("time difference: ", time_difference)
 
-            # print(f"{current_time_ms=} {timestamps[i]=}")
+			# print(f"{current_time_ms=} {self.timestamps[i]=}")
 			if time_difference < 5 or current_time_ms >= self.timestamps[i]:
 				i += 1
 
@@ -486,20 +489,20 @@ class Detector:
 			if (self.compass_bearings[i] != 0):
 				bearing = (self.compass_bearings[i]- 90) % 360
 
-			offset = math.atan(videoHeight/videoWidth) * 180 / math.pi
+			# offset = math.atan(videoHeight/videoWidth) * 180 / math.pi
 
 			# Calculate the destination points
-			top_left = self.rhumb_destination(center, distance, (bearing + offset + 180) % 360 - 180, {'units': 'meters'})
-			top_left_x, top_left_y = self.convert_to_pixel(float(top_left[0]), float(top_left[1]), self.left, self.right, self.top, self.bottom)
+			# top_left = self.rhumb_destination(center, distance, (bearing + offset + 180) % 360 - 180, {'units': 'meters'})
+			# top_left_x, top_left_y = self.convert_to_pixel(float(top_left[0]), float(top_left[1]), self.left, self.right, self.top, self.bottom)
 
-			top_right = self.rhumb_destination(center, distance, (bearing - offset) % 360 - 180, {'units': 'meters'})
-			top_right_x, top_right_y = self.convert_to_pixel(float(top_right[0]), float(top_right[1]), self.left, self.right, self.top, self.bottom)
+			# top_right = self.rhumb_destination(center, distance, (bearing - offset) % 360 - 180, {'units': 'meters'})
+			# top_right_x, top_right_y = self.convert_to_pixel(float(top_right[0]), float(top_right[1]), self.left, self.right, self.top, self.bottom)
 
-			bottom_left = self.rhumb_destination(center, distance, (bearing - offset + 180) % 360 - 180, {'units': 'meters'})
-			bottom_left_x, bottom_left_y = self.convert_to_pixel(float(bottom_left[0]), float(bottom_left[1]), self.left, self.right, self.top, self.bottom)
+			# bottom_left = self.rhumb_destination(center, distance, (bearing - offset + 180) % 360 - 180, {'units': 'meters'})
+			# bottom_left_x, bottom_left_y = self.convert_to_pixel(float(bottom_left[0]), float(bottom_left[1]), self.left, self.right, self.top, self.bottom)
 
-			bottom_right = self.rhumb_destination(center, distance, (bearing + offset) % 360 - 180, {'units': 'meters'})
-			bottom_right_x, bottom_right_y = self.convert_to_pixel(float(bottom_right[0]), float(bottom_right[1]), self.left, self.right, self.top, self.bottom)
+			# bottom_right = self.rhumb_destination(center, distance, (bearing + offset) % 360 - 180, {'units': 'meters'})
+			# bottom_right_x, bottom_right_y = self.convert_to_pixel(float(bottom_right[0]), float(bottom_right[1]), self.left, self.right, self.top, self.bottom)
 
 			results = model.predict(frame, save=False, imgsz=640, conf=0.4, verbose=False, stream=True, half=True, device='cuda')
 
@@ -559,7 +562,7 @@ class Detector:
 
 			previous_timestamp = self.timestamps[i]
 			previous_video_time = current_time_ms
-			i += 1
+			# i += 1
 
 
 		def ensure_16_frames(video_frames):
@@ -633,143 +636,3 @@ class Detector:
 		cap.release()
 		cv2.destroyAllWindows()
 		return 1
-
-	# def run(self):
-	# 	fov = 54/2 * np.pi / 180   # Drone camera field of view in radians
-	# 	# Multiply by altitude to get distance across the video's diagonal
-	# 	fov_tan = np.tan(fov)
-
-	# 	videoHeight = 1080
-	# 	videoWidth = 1920
-	# 	final_image = np.ones((self.map_height, self.map_width, 3), dtype=np.uint8)*255
-	# 	paper_image = np.ones((self.map_height, self.map_width, 3), dtype=np.uint8)*255
-	# 	gps_points = []
-
-	# 	# Initialize video capture
-	# 	model = YOLO('best.pt')
-
-	# 	# video_path = "DJI_0080.MP4"
-	# 	cap = cv2.VideoCapture(self.video_path)
-
-	# 	# Get the frames per second (fps) of the video
-	# 	fps = cap.get(cv2.CAP_PROP_FPS)
-	# 	# Calculate the frame interval in frames
-	# 	frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
-	# 	change = 0
-	# 	counter = 0
-	# 	mistake_counter = 0
-	# 	cumulative_time_difference = 0
-	# 	current_frame_number = 0
-
-
-	# 	working_directory = os.getcwd()
-
-
-	# 	def run_inference(modelMAE, video):
-	# 		perumuted_sample_test_video = video.permute(1, 0, 2, 3)
-	# 		inputs = {"pixel_values": perumuted_sample_test_video.unsqueeze(0)}
-
-	# 		device = torch.device(
-	# 			"cuda" if torch.cuda.is_available() else "cpu")
-	# 		inputs = {k: v.to(device) for k, v in inputs.items()}
-	# 		modelMAE = modelMAE.to(device)
-
-	# 		with torch.no_grad():
-	# 			outputs = modelMAE(**inputs)
-	# 			logits = outputs.logits
-
-	# 		return logits
-
-
-	# 	data_path = os.path.join(working_directory, "videos")
-	# 	label2id = {'not_working': 0, 'working': 1}
-	# 	id2label = {0: 'not_working', 1: 'working'}
-	# 	model_ckpt = os.path.join(working_directory, "videomae_weights")
-	# 	print(data_path)
-
-
-	# 	modelMAE = VideoMAEForVideoClassification.from_pretrained(
-	# 		model_ckpt,
-	# 		label2id=label2id,
-	# 		id2label=id2label,
-	# 		ignore_mismatched_sizes=True,
-	# 	)
-
-	# 	image_processor = VideoMAEImageProcessor.from_pretrained(model_ckpt)
-	# 	mean = image_processor.image_mean
-	# 	std = image_processor.image_std
-	# 	resize_to = 224
-	# 	num_frames_to_sample = 16
-	# 	sample_rate = 4
-	# 	fps = 30
-	# 	clip_duration = num_frames_to_sample * sample_rate / fps
-
-	# 	transform = Compose(
-	# 		[
-	# 			ApplyTransformToKey(
-	# 				key="video",
-	# 				transform=Compose(
-	# 					[
-	# 						UniformTemporalSubsample(num_frames_to_sample),
-	# 						Lambda(lambda x: x / 255.0),
-	# 						Normalize(mean, std),
-	# 						Resize(resize_to),
-	# 					]
-	# 				)
-	# 			),
-	# 		]
-	# 	)
-
-	# 	dataset = pytorchvideo.data.Ucf101(
-	# 		data_path=os.path.join(working_directory, "videos"),
-	# 		clip_sampler=pytorchvideo.data.make_clip_sampler("uniform", clip_duration),
-	# 		decode_audio=False,
-	# 		transform=transform,
-	# 	)
-
-	# 	print(dataset.num_videos)
-
-	# 	df = pd.read_csv("logs.csv")
-	# 	df_dict = df.set_index('file_name').T.to_dict('list')
-
-	# 	data = []
-	# 	modelMAE.eval()
-
-	# 	with torch.no_grad():
-	# 		for i, video in enumerate(iter(dataset)):
-	# 			logits = run_inference(modelMAE, video["video"])
-	# 			name = video['video_name']
-	# 			print("Name of the files is ", name)
-	# 			# print(name, modelMAE.config.id2label[logits.argmax(-1).item()])
-	# 			predicted_label = modelMAE.config.id2label[logits.argmax(-1).item()]
-
-	# 			longitude, latitude, timestamp = df_dict.get(name, [None, None, None])
-
-	# 			data.append({
-	# 				'file_name': name,
-	# 				'predicted_class': predicted_label,
-	# 				'longitude': longitude,
-	# 				'latitude': latitude,
-	# 				'timestamp': timestamp
-	# 			})
-
-	# 			x_pixel, y_pixel = self.convert_to_pixel(
-	# 				longitude, latitude, self.left, self.right, self.top, self.bottom)
-
-	# 			if predicted_label == "working":
-	# 				paper_image = self.draw(paper_image, (x_pixel, y_pixel), (0, 255, 0), 4)
-	# 			else:
-	# 				paper_image = self.draw(paper_image, (x_pixel, y_pixel), (0, 0, 255), 4)
-
-
-	# 	with open('output.json', 'w') as f:
-	# 		json.dump(data, f)
-
-
-	# 	cv2.imshow("GPS by Pixel", final_image)
-	# 	cv2.imwrite("full_map_0080.png", final_image)
-	# 	cv2.imwrite("paper_image_0080.png", paper_image)
-	# 	cv2.waitKey(0)
-
-	# 	cap.release()
-	# 	cv2.destroyAllWindows()

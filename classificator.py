@@ -51,7 +51,7 @@ from torchvision.transforms import (
     Resize,
 )
 class Detector():
-    def __init__(self, video_path, csv_file, srt_path):
+    def __init__(self, video_path, srt_path):
         self.srt_path = srt_path
         self.video_path = video_path
         csv_file='flight_logs.csv'
