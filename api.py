@@ -339,23 +339,28 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     # csv_path = f"./{csv_file.filename}"
     video_path = f"./{video_file.filename}"
     srt_path = f"./{srt_file.filename}"
-    csv_path = "May-17th-2024-03-08PM-Flight-Airdata.csv"
+    #csv_path = "May-17th-2024-03-08PM-Flight-Airdata.csv"
+    csv_path = ""
     # video_path="MAX_0004_02_27.MP4"
     # save video and csv file locally
     if not os.path.exists(srt_path):
-        with open(csv_path, "wb") as file:
+        with open(srt_path, "wb") as file:
             file.write(srt_file.file.read())
     if not os.path.exists(video_path):
         with open(video_path, "wb") as file:
             file.write(video_file.file.read())
         
     detection =  detector.Detector(csv_path, video_path, srt_path)
-    classification = classificator.Detector(video_path, csv_path, srt_path)
+    classification = classificator.Detector(video_path, srt_path)
+    print("starting detection")
     detection.start_detection()
+    print("detection finished")
+    os.system("rm -r videos/dataset/crops")
+    print("classification started")
     classification.start_classification()
     
     # remove the files afterwards
-    os.remove(csv_path)
+    # os.remove(csv_path)
     os.remove(video_path)
     # remove videos/dataset folder
     os.system("rm -r videos/dataset")

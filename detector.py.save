@@ -414,17 +414,16 @@ class Detector:
 		# Load the CSV file into a Pandas DataFrame
 		# csv_file = '0080.csv'  # Replace with the path to your CSV file
 
-		folder = "videos/dataset/crops/"
+		crops_dir = "videos/dataset/crops"
 
 		try:
-			os.mkdir(folder)
+			os.mkdir(crops_dir)
 			print("Directory created successfully!")
 		except FileExistsError:
   			print("Directory already exists.")
 		except OSError as e:
   			print(f"Error creating directory: {e}")
 
-		unique_index = 0
 		# Assuming you have an 800x800 pixel map
 
 		fov =  54/2* np.pi / 180   # Drone camera field of view in radians
@@ -536,7 +535,6 @@ class Detector:
 				counter+=1
 
 				for detection in detections:
-					unique_index += 1
 					x_det, y_det, _, _ = detection
 
 					x_gps, y_gps = self.convert_to_gps((x_det, y_det), videoHeight, videoWidth,
@@ -557,18 +555,419 @@ class Detector:
 					if (cropped_image.shape[0]>=500 and cropped_image.shape[1]>=500):
 
 						# cv2.imshow("Cropped image:", cropped_image)
-
 						image = np.uint8(cropped_image)
-						image_path = folder+f"{x_gps}_{y_gps}_{unique_index}.jpg"
-						cv2.imwrite(image_path, image)
+						import cv2
+from ultralytics import YOLO
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+import re
+import csv
+import os
+import time
+
+import ffmpeg
+
+# from test import haversine
+
+
+def draw(image, point, color, size):
+    cv2.circle(image, (image.shape[1]-int(point[0]), int(point[1])), size, color, -1)
+    return image
+
+
+def find_gps_distance(point1, point2):
+    R = 6371000
+
+    lat1 = math.radians(point1[1])
+    lon1 = math.radians(point1[0])
+
+    lat2 = math.radians(point2[1])
+    lon2 = math.radians(point2[0])
+
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    distance = R * c
+
+    return distance
+
+
+def make_average(latitude, longitude, gps_points, name, datetime_log):
+    found = 0
+    for i, points in enumerate(gps_points):
+        for j, point in enumerate(points):
+            distance = find_gps_distance((latitude, longitude), (point[0][0], point[0][1]))
+            # print("Distance", distance)
+            if distance < 3.0:
+                # print(f"Distance: {dis}")
+                gps_points[i].append(((latitude, longitude), name, datetime_log))
+                found = 1
+                break
+
+    if found == 0:
+        points = []
+        points.append(((latitude, longitude), name, datetime_log))
+        gps_points.append(points)
+
+    return gps_points, name
+
+
+def check_timestamps(timestamps):
+     for t_i, t_j in zip(timestamps, timestamps[1:]):
+        if round(t_j - t_i) != 200:
+            print("Diff is not 200 at", t_i)
+        # print(t_i, t_j)
+        # print(t_j - t_i)
+        # break
+
+
+def visualise_path(df):
+        # Extract Latitude and Longitude columns
+        latitude = df['latitude']
+        longitude = df['longitude']
+        # Create a scatter plot of the drone path
+        plt.figure(figsize=(12, 8))
+        plt.scatter(longitude, latitude, c='blue', marker='o', s=10, label='Drone Path')
+        plt.xlabel('Longitude')
+        plt.ylabel('Latitude')
+        plt.title('Drone Path Visualization')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+
+def rhumb_destination(point, distance, bearing, options=None):
+	options = options or {}
+	units = options.get('units', 'kilometers')
+
+	# Conversion factor based on the chosen unit
+	if units == 'miles':
+		factor = 3960
+	elif units == 'kilometers':
+		factor = 6371
+	elif units == 'meters':
+		factor = 6371000  # 1 kilometer = 1000 meters
+	else:
+		raise ValueError("Invalid units specified")
+
+	# Convert distance to radians
+	rad_dist = distance / factor
+
+	# Convert bearing to radians
+	rad_bearing = math.radians(bearing)
+
+	# Convert coordinates to radians
+	rad_lat = math.radians(point[1])
+	rad_lon = math.radians(point[0])
+
+	# Calculate destination coordinates
+	rad_new_lat = rad_lat + rad_dist * math.cos(rad_bearing)
+	rad_new_lon = rad_lon + (rad_dist * math.sin(rad_bearing)) / math.cos(rad_new_lat)
+
+	# Convert back to degrees
+	new_lat = math.degrees(rad_new_lat)
+	new_lon = math.degrees(rad_new_lon)
+
+	# Return the new point
+	return new_lon, new_lat
+
+
+# Function to convert detections' coordinates to GPS coordinates
+def convert_to_gps(p, videoHeight, videoWidth, diagonalDistance, center, bearing, options):
+	# Change coordinate system so the center point of the video is (0, 0)
+	normalized = [p[1] - videoHeight / 2, p[0] - videoWidth / 2]
+
+	# Calculate the distance and bearing of the solar panel relative to the center point
+	distanceFromCenterInPixels = math.sqrt((videoWidth / 2 - p[0])**2 + (videoHeight / 2 - p[1])**2)
+	diagonalDistanceInPixels = math.sqrt(videoWidth**2 + videoHeight**2)
+	percentOfDiagonal = distanceFromCenterInPixels / diagonalDistanceInPixels
+	distance = percentOfDiagonal * diagonalDistance  # in meters
+
+	# Calculate the angle
+	angle = math.atan(normalized[0] / (normalized[1] or 0.000001)) * 180 / math.pi
+
+	# If the detection is in the right half of the frame, rotate it 180 degrees
+	if normalized[1] >= 0:
+		angle += 180
+
+	# Use distance and bearing to get the GPS location of the panel
+	point = rhumb_destination(center, distance, (bearing + angle) % 360, options)
+
+	return point
+
+
+def convert_to_pixel(latitude, longitude, left, right, top, bottom, map_height, map_width):
+	x = int((longitude - left) / (right - left) * map_width)
+	y = map_height - int((latitude - bottom) / (top - bottom) * map_height)
+	return x, y
+
+
+def ensure_16_frames(video_frames):
+    num_frames = len(video_frames)
+    if num_frames < 16:
+        repeat_factor = 16 // num_frames  # How many times to repeat the whole sequence
+        additional_frames_needed = 16 % num_frames  # Additional frames needed to reach 16
+        repeated_sequence = video_frames * repeat_factor  # Repeat the sequence to fill most of the gap
+        # Add additional frames evenly from the original sequence
+        additional_frames = [video_frames[i * len(video_frames) // additional_frames_needed] for i in range(additional_frames_needed)]
+        video_frames = repeated_sequence + additional_frames
+    elif num_frames > 16:
+        # # If more than 16 frames, select 16 evenly spaced frames from the list
+        # frame_indices = np.linspace(0, num_frames - 1, 16, dtype=int)
+        # video_frames = [video_frames[index] for index in frame_indices]
+        pass
+    return video_frames
+
+
+def verify_video_frames(video_path):
+    cap = cv2.VideoCapture(video_path)
+    frame_count = 0
+    while cap.isOpened():
+        ret, _ = cap.read()
+        if not ret:
+            break
+        frame_count += 1
+    cap.release()
+    return frame_count == 16
+
+
+def main():
+    
+    video = '0020'
+    video_name = f"DJI_{video}"
+    video_paths = [video_name, 'DJI_0021', 'DJI_0022']
+    csv_file = f"{video}.csv"
+    folder = f'videos/{video}/crops/'
+
+    model = YOLO('best.pt')
+
+    observations = pd.read_csv(csv_file)
+    observations = observations[observations['isVideo'] == 1]
+    # print(observations['time(millisecond)'])
+    observations['time(millisecond)'] -= list(observations['time(millisecond)'])[0] # to start from 0
+    timestamps = list(observations['time(millisecond)'])
+    datetime_logs = list(observations['datetime(utc)'])
+
+    # ---------------------Virtual Map---------------------
+    # Initialize boundaries
+    top, bottom, left, right = -np.inf, np.inf, np.inf, -np.inf
+    extension_factor = 0.0001  # Adjust this factor as needed
+
+    for _, o in observations.iterrows():
+        # Extend boundaries based on longitude and latitude
+        top = max(top, float(o['longitude']) + extension_factor)
+        bottom = min(bottom, float(o['longitude']) - extension_factor)
+        left = min(left, float(o['latitude']) - extension_factor)
+        right = max(right, float(o['latitude']) + extension_factor)
+
+    # Calculate the width and height of the map in GPS coordinates
+    width = right - left
+    height = top - bottom
+    map_height = 800
+    print(f"The width: {width}, the height: {height}")
+
+    # map_width = 800
+    if width/height < 0.5:
+        map_width = int(0.5*map_height)
+    else:
+        map_width = int(map_height*(math.radians(width)*6371000.0)/(math.radians(height)*6371000.0))
+    # round(map_height*(width/height))*2
+
+    print(f"The width: {map_width}, the height: {map_height}")
+
+    fov =  54/2 * np.pi / 180   # Drone camera field of view in radians
+    fov_tan = np.tan(fov)  # Multiply by altitude to get distance across the video's diagonal
+
+    videoHeight = 1080
+    videoWidth = 1920
+
+    final_image = np.ones((map_height, map_width, 3), dtype=np.uint8)*255
+    gps_points = []
+
+    # ---------------------Virtual Map---------------------
+
+    i = 0
+
+    lats = list(observations['latitude'])
+    lons = list(observations['longitude'])
+    compass_bearings = list(observations[" compass_heading(degrees)"]) # sometimes with space
+    altidutes = list(observations["ascent(feet)"])
+
+    # check_timestamps(timestamps)
+    visualise_path(observations)
+    unique_index = 0
+    previous_video_time = 0
+
+    for video_path in video_paths:
+
+        cap = cv2.VideoCapture(video_path+".MP4")
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+
+        print("Video FPS: ", fps)
+
+        # timestamps[i] -= list(observations['time(millisecond)'])[0]
+
+        while cap.isOpened() and i < len(timestamps):
+            
+            success, frame = cap.read()
+            if not success:
+                break
+
+            current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) + previous_video_time
+            time_difference = abs(current_time_ms-timestamps[i])
+            # print("time difference: ", time_difference)
+
+            # print(f"{current_time_ms=} {timestamps[i]=}")
+            if time_difference < 5 or current_time_ms >= timestamps[i]:
+                i += 1      
+
+            # -----------------------------Drone Path-----------------------------
+
+            altidute = altidutes[i] * 0.3048
+            diagonal_distance = altidute * fov_tan
+            distance = diagonal_distance / 2
+            center = (lons[i], lats[i])
+            if (compass_bearings[i] != 0):
+                bearing = (compass_bearings[i]- 90) % 360
+            x_center_cord, y_center_cord = convert_to_pixel(float(center[0]), float(center[1]),
+                                    left, right, top, bottom, map_height, map_width)
+        
+            # -----------------------------Model Prediction-----------------------------
+
+            detections = None
+            results = model.predict(frame, save=False, imgsz=640, conf=0.6, verbose=False, stream=True)
+            # results.draw()
+            for result in results:
+                if not result:
+                    continue
+                
+                detections = result.boxes.xywh.cpu().numpy()
+                
+            if detections is not None:
+                for detectinon in detections:
+                    x_det, y_det, _, _ = detectinon
+
+                    unique_index += 1
+
+                    # cv2.circle(frame, (int(x_det), int(y_det)), 5, (0, 0, 255), -1)
+
+                    x_gps, y_gps = convert_to_gps((x_det, y_det), videoHeight, videoWidth,
+                                    diagonal_distance, center, bearing, {'units': 'meters'})
+
+                    x_plot, y_plot = convert_to_pixel(float(x_gps), float(y_gps), left, right,
+                                            top, bottom, map_height, map_width)
+
+                    final_image = draw(final_image, (x_plot, y_plot),(255, 255, 0), 2)
+
+                    crop_size, x_det, y_det = 250, int(x_det), int(y_det)
+                    cropped_image = frame[max(0, y_det-250):min(y_det+250, frame.shape[0]),
+                                        max(0, x_det-250):min(x_det+250, frame.shape[1])]
+
+                    if (cropped_image.shape[0] >= 500 and cropped_image.shape[1] >= 500):
+                        cv2.imshow("Cropped image", cropped_image)
+
+                        image = np.uint8(cropped_image)
+                        image_path = folder+f"{x_gps}_{y_gps}_{unique_index}.jpg"
+
+                        cv2.imwrite(image_path, image)
+                        
+                        if len(gps_points) == 0:
+                            points = []
+                            points.append(((x_gps, y_gps), image_path))
+                            gps_points.append(points)
+                        else:
+                            gps_points, image = make_average(x_gps, y_gps, gps_points, image_path, datetime_logs[i])
+
+
+
+            final_image = draw(final_image, (x_center_cord, y_center_cord),(0, 0, 255), 2)
+
+            cv2.imshow("Virtual Map", final_image)
+
+            show_frame = cv2.resize(frame, (800, 600))
+            cv2.imshow("Inference", show_frame)
+
+
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'):
+                break    
+
+        cap.release()
+        previous_video_time = current_time_ms
+
+
+    with open('logs.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["file_name", "longitude", "latitude", "timestamp", "iterator"])
+
+        for i, group in enumerate(gps_points):
+            video_frames = [point[1] for point in group]
+
+            # print(video_frames)
+
+            # video_frames = ensure_16_frames(video_frames)
+
+            video_result = cv2.VideoWriter(f'videos/{video}/wobbler_{i}.avi', cv2.VideoWriter_fourcc(*'MJPG'), 30, (500, 500))
+            for frame_path in video_frames:
+
+                # print(frame_path)
+
+                frame = cv2.imread(frame_path)
+                frame = np.uint8(frame)
+                # print(type(frame))
+
+                video_result.write(frame)
+            video_result.release()
+
+            x_gps, y_gps = zip(*[point[0] for point in group])
+            datetime_log = group[-1][-1]
+
+            print("Log at", datetime_log)
+
+            avg_x_gps = sum(x_gps) / len(x_gps)
+            avg_y_gps = sum(y_gps) / len(y_gps)
+
+            x_pixel, y_pixel = convert_to_pixel(avg_x_gps, avg_y_gps, left, right, top, bottom, map_height, map_width)
+
+            final_image = draw(final_image, (x_pixel, y_pixel), (0, 0, 0), 2)
+            cv2.putText(final_image, f"w_{i}", (int(final_image.shape[1]-x_pixel), y_pixel), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 0), 1)
+
+            writer.writerow([f'wobbler_{i}.avi', avg_x_gps, avg_y_gps, datetime_log, i])
+
+            # After saving the video, verify the number of frames
+            video_path = f'videos/{video}/wobbler_{i}.avi'  # Use the path to the saved video
+            # if verify_video_frames(video_path):
+            #     print(f"Video {video_path} verified with exactly 16 frames.")
+            # else:
+            #     print(f"Error: Video {video_path} does not have 16 frames.")
+
+
+    cv2.imshow("GPS by Pixel", final_image)
+    cv2.imwrite("full_map_0080.png", final_image)
+    cv2.waitKey(0)
+
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    begin_time = time.time()
+    main()
+    print("Total time: ", time.time() - begin_time)
 
 						if len(gps_points) == 0:
 							# print("No detection")
 							points = []
-							points.append(((x_gps, y_gps), image_path))
+							points.append(((x_gps, y_gps), image))
 							gps_points.append(points)
 						else:
-							gps_points, image = self.make_average(x_gps, y_gps, gps_points, image_path, datetime_log)
+							gps_points, image = self.make_average(x_gps, y_gps, gps_points, image, datetime_log)
 
 
 			final_image = self.draw(final_image, (x_cord, y_cord),(0, 0, 255), 2)
@@ -616,10 +1015,7 @@ class Detector:
 				video_frames = ensure_16_frames(video_frames)
 
 				video_result = cv2.VideoWriter(f'videos/dataset/wobbler_{i}.avi', cv2.VideoWriter_fourcc(*'MJPG'), 30, (500, 500))
-				for frame_path in video_frames:
-					frame = cv2.imread(frame_path)
-					frame = np.uint8(frame)
-
+				for frame in video_frames:
 					video_result.write(frame)
 				video_result.release()
 
