@@ -356,15 +356,36 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     if not os.path.exists(video_path):
         with open(video_path, "wb") as file:
             file.write(video_file.file.read())
+    
+    # write the video path to existing file without overwriting
+    with open("video_path.txt", "a") as f:
+        f.write(video_path + "\n")
+    
         
-    detection =  detector.Detector(csv_path, video_path, srt_path)
-    classification = classificator.Detector(video_path, srt_path)
-    print("starting detection")
-    detection.start_detection()
-    print("detection finished")
-    os.system("rm -r videos/dataset/crops")
-    print("classification started")
-    classification.start_classification()
+    # Step 1: Read the number of lines in video_path.txt
+    if not os.path.exists('video_path.txt'):
+        with open('video_path.txt', 'r') as file:
+            lines = file.readlines()
+            num_lines = len(lines)
+
+    # Step 2: Read the number from num_videos.txt
+    if not os.path.exists('num_videos.txt'):
+        with open('num_videos.txt', 'r') as file:
+            num_videos = int(file.read().strip())
+
+    # Step 3: Compare the two numbers and execute the code if they match
+    if num_lines == num_videos:
+        # Assuming the necessary imports and setup for detector and classificator are done above this code
+        detection = detector.Detector(csv_path, video_path, srt_path)
+        classification = classificator.Detector(video_path, srt_path)
+        print("starting detection")
+        detection.start_detection()
+        print("detection finished")
+        os.system("rm -r videos/dataset/crops")
+        print("classification started")
+        classification.start_classification()
+    else:
+        print("The number of lines in video_path.txt does not match the number in num_videos.txt")
     
     # remove the files afterwards
     # os.remove(csv_path)
@@ -373,7 +394,9 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     os.system("rm -r videos/dataset")
     # create dataset folder
     os.system("mkdir videos/dataset")
-
+    # clean the video_path.txt
+    with open("video_path.txt", "w") as f:
+        f.write("")
     try:
         print("here")
         create_wobblers_from_json(1, 1, db, 'output.json')
