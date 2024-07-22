@@ -394,18 +394,19 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
         os.system("rm -r videos/dataset/crops")
         print("classification started")
         classification.start_classification()
+        # remove the files afterwards
+        # os.remove(csv_path)
+        os.remove(video_path)
+        # remove videos/dataset folder
+        os.system("rm -r videos/dataset")
+        # create dataset folder
+        os.system("mkdir videos/dataset")
+        # clean the video_path.txt
         
     else:
         print("The number of lines in video_path.txt does not match the number in num_videos.txt")
     
-    # remove the files afterwards
-    # os.remove(csv_path)
-    os.remove(video_path)
-    # remove videos/dataset folder
-    os.system("rm -r videos/dataset")
-    # create dataset folder
-    os.system("mkdir videos/dataset")
-    # clean the video_path.txt
+    
     
     try:
         print("here")
