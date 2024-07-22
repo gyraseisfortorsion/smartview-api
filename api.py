@@ -334,6 +334,12 @@ async def get_efficiency(heap_leaching_pad_id:int, db: Session = Depends(get_db)
     count_wobblers = db.query(Wobbler).filter(Wobbler.heap_leaching_pad_id==heap_leaching_pad_id).count()
     return 1-count_breakages/count_wobblers
 
+@app.post('/api/num_vides/{num}', tags=["07:Per heap leaching pad"])
+def num_videos(num: int):
+    # save the number into txt file
+    with open("num_videos.txt", "w") as f:
+        f.write(str(num))
+    return num
 @app.post('/api/load_data', tags=["07:Per heap leaching pad"])
 async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = File(...), db: Session = Depends(get_db)):
     # csv_path = f"./{csv_file.filename}"
