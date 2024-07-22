@@ -445,7 +445,7 @@ class Detector:
 		# cap = cv2.VideoCapture(self.video_path)
 
 		# Get the frames per second (fps) of the video
-		fps = cap.get(cv2.CAP_PROP_FPS)
+		# fps = cap.get(cv2.CAP_PROP_FPS)
 		# Calculate the frame interval in frames
 		frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
 		change = 0
