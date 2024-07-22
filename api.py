@@ -363,10 +363,12 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     
         
     # Step 1: Read the number of lines in video_path.txt
+    video_paths = []
     if not os.path.exists('video_path.txt'):
         with open('video_path.txt', 'r') as file:
             lines = file.readlines()
             num_lines = len(lines)
+            video_paths = [line.strip() for line in lines]
 
     # Step 2: Read the number from num_videos.txt
     if not os.path.exists('num_videos.txt'):
@@ -374,9 +376,10 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
             num_videos = int(file.read().strip())
 
     # Step 3: Compare the two numbers and execute the code if they match
+
     if num_lines == num_videos:
         # Assuming the necessary imports and setup for detector and classificator are done above this code
-        detection = detector.Detector(csv_path, video_path, srt_path)
+        detection = detector.Detector(csv_path, video_paths, srt_path)
         classification = classificator.Detector(video_path, srt_path)
         print("starting detection")
         detection.start_detection()
