@@ -461,7 +461,7 @@ class Detector:
 
 		for video_path in self.video_paths:
 
-			cap = cv2.VideoCapture(video_path+".MP4")
+			cap = cv2.VideoCapture(video_path)
 
 			while cap.isOpened() and i < len(self.timestamps):
 
