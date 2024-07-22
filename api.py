@@ -362,6 +362,7 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
         f.write(video_path + "\n")
     
     num_lines=0
+    num_videos=0
     # Step 1: Read the number of lines in video_path.txt
     video_paths = []
     if not os.path.exists('video_path.txt'):
