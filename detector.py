@@ -420,10 +420,10 @@ class Detector:
 			os.mkdir(folder)
 			print("Directory created successfully!")
 		except FileExistsError:
-  			print("Directory already exists.")
+			print("Directory already exists.")
 		except OSError as e:
-  			print(f"Error creating directory: {e}")
-
+			print(f"Error creating directory: {e}")
+		
 		unique_index = 0
 		# Assuming you have an 800x800 pixel map
 
