@@ -390,6 +390,10 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
         os.system("rm -r videos/dataset/crops")
         print("classification started")
         classification.start_classification()
+        with open("video_path.txt", "w") as f:
+            f.write("")
+        with open("num_videos.txt", "w") as f:
+            f.write("")
     else:
         print("The number of lines in video_path.txt does not match the number in num_videos.txt")
     
@@ -401,8 +405,7 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     # create dataset folder
     os.system("mkdir videos/dataset")
     # clean the video_path.txt
-    with open("video_path.txt", "w") as f:
-        f.write("")
+    
     try:
         print("here")
         create_wobblers_from_json(1, 1, db, 'output.json')
