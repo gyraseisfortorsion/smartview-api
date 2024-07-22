@@ -382,6 +382,10 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     # print(num_lines, num_videos)
     if num_lines == num_videos:
         # Assuming the necessary imports and setup for detector and classificator are done above this code
+        with open("video_path.txt", "w") as f:
+            f.write("")
+        with open("num_videos.txt", "w") as f:
+            f.write("")
         detection = detector.Detector(csv_path, video_paths, srt_path)
         classification = classificator.Detector(video_path, srt_path)
         print("starting detection")
@@ -390,10 +394,7 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
         os.system("rm -r videos/dataset/crops")
         print("classification started")
         classification.start_classification()
-        with open("video_path.txt", "w") as f:
-            f.write("")
-        with open("num_videos.txt", "w") as f:
-            f.write("")
+        
     else:
         print("The number of lines in video_path.txt does not match the number in num_videos.txt")
     

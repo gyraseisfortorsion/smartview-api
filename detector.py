@@ -447,12 +447,12 @@ class Detector:
 		# Get the frames per second (fps) of the video
 		# fps = cap.get(cv2.CAP_PROP_FPS)
 		# Calculate the frame interval in frames
-		frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
-		change = 0
+		# frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
+		# change = 0
 		counter = 0
-		mistake_counter =0
-		cumulative_time_difference = 0
-		current_frame_number = 0
+		# mistake_counter =0
+		# cumulative_time_difference = 0
+		# current_frame_number = 0
 
 
 		previous_timestamp = self.timestamps[0] - (self.timestamps[1] - self.timestamps[0])
