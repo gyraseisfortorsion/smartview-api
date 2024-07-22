@@ -402,18 +402,15 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
         # create dataset folder
         os.system("mkdir videos/dataset")
         # clean the video_path.txt
-        
+        try:
+            print("here")
+            create_wobblers_from_json(1, 1, db, 'output.json')
+            print("here2")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     else:
         print("The number of lines in video_path.txt does not match the number in num_videos.txt")
     
-    
-    
-    try:
-        print("here")
-        create_wobblers_from_json(1, 1, db, 'output.json')
-        print("here2")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     
     return "success"
 
