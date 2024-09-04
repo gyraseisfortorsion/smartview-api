@@ -17,6 +17,48 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+@app.get('/api/flights/last/breakages/all_pads', tags=["07:Per heap leaching pad"])
+async def get_last_flight_breakages(heap_leaching_pad_id:int, db: Session = Depends(get_db)):
+    # count working and not working for all pads for the last flight
+    # get all pads
+    pads = db.query(HeapLeachingPad).all()
+    # get all last flights per pad
+    last_flights = db.query(Flights).filter(Flights.when!=None).all()
+
+    total_working = 0
+    total_not_working = 0
+    for pad in pads:
+        last_flight = db.query(Flights).filter(Flights.heap_leaching_pad_id==pad.id, Flights.when!=None).order_by(Flights.when.desc()).first()
+        if not last_flight:
+            continue
+        # working = db.query(Breakage).join(Breakage.wobbler).filter(Breakage.flight_id==last_flight.id, Wobbler.status=="working").count()
+        not_working = db.query(Breakage).join(Breakage.wobbler).filter(Breakage.flight_id==last_flight.id, Wobbler.status=="not_working").count()
+        working = pad.number_of_wobblers - not_working
+        total_working+=working
+        total_not_working+=not_working
+    return {
+        'working': total_working,
+        'not_working': total_not_working
+    }
+
+@app.get('/api/wobblers/by_field', tags=["All pads"])
+async def get_wobblers_by_field(
+    db: Session = Depends(get_db),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    query = db.query(HeapLeachingPad, func.count(Wobbler.id)).join(Wobbler)
+
+    if date_from:
+        query = query.filter(Wobbler.time_of_detection_of_breakage >= date_from)
+    if date_to:
+        query = query.filter(Wobbler.time_of_detection_of_breakage <= date_to)
+
+    wobblers_by_field = query.group_by(HeapLeachingPad.id).all()
+
+    # Convert the HeapLeachingPad objects to dictionaries
+    wobblers_by_field = [{"field_id": heap_leaching_pad.id, "wobblers": count} for heap_leaching_pad, count in wobblers_by_field]
+    return wobblers_by_field
 
 @app.get('/api/get_logs/')
 async def get_last_flight_from_airdata(start: Optional[str] = None, end: Optional[str] = None):
