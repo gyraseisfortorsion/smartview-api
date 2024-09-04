@@ -61,6 +61,14 @@ def create_wobblers_from_json(flight_id: int, heap_leaching_pad_id: int, session
             heap_leaching_pad_id=heap_leaching_pad_id
         )
         session.add(flight)
+        
+        heap_leaching_pad = session.query(HeapLeachingPad).filter_by(id=heap_leaching_pad_id).first()
+        if not heap_leaching_pad:
+            raise ValueError("HeapLeachingPad not found")
+
+        # Update the number_of_wobblers
+        heap_leaching_pad.number_of_wobblers = len(json_file)
+        session.add(heap_leaching_pad)
         # add newly detected wobblers to the database
         for line in json_file:
             # print(line)

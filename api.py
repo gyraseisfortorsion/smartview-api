@@ -25,7 +25,7 @@ async def get_last_flight_from_airdata(start: Optional[str] = None, end: Optiona
     timeout = 10.0  # Timeout limit in seconds
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, auth=auth)
-        # print(response.json()["data"])
+        print(response.json())
         
         data = response.json()["data"]
         
@@ -266,6 +266,7 @@ async def get_breakages_repeating(heap_leaching_pad_id: int, db: Session = Depen
     count_repeating = db.query(Breakage.wobbler_id).filter(Breakage.heap_leaching_pad_id==heap_leaching_pad_id, Breakage.is_last_breakage==True).group_by(Breakage.wobbler_id).having(func.count(Breakage.wobbler_id) > 1).count()
     return count_repeating
 
+# @app.get('/api/flights/last/breakages/{heap_leaching_pad_id}', tags=["07:Per heap leaching pad"])
 
 @app.get('/api/flights/last/{heap_leaching_pad_id}', tags=["07:Per heap leaching pad"])
 async def get_last_flight(heap_leaching_pad_id:int, db: Session = Depends(get_db)):
@@ -287,8 +288,13 @@ async def get_last_flight_breakages(heap_leaching_pad_id:int, db: Session = Depe
     last_flight = db.query(Flights).filter(Flights.heap_leaching_pad_id==heap_leaching_pad_id, Flights.when!=None).order_by(Flights.when.desc()).first()
     # breakages = db.query(Breakage).filter(Breakage.flight_id==last_flight.id).all()
     # count by breakage status
-    working = db.query(Breakage).join(Breakage.wobbler).filter(Breakage.flight_id==last_flight.id, Wobbler.status=="working").count()
+    # working = db.query(Breakage).join(Breakage.wobbler).filter(Breakage.flight_id==last_flight.id, Wobbler.status=="working").count()
+    heap_leaching_pad = db.query(HeapLeachingPad).filter(HeapLeachingPad.id == heap_leaching_pad_id).first()
+    if not heap_leaching_pad:
+        return {"error": "Heap leaching pad not found"}, 404
+    # working = heap_leaching_pad.number_of_wobblers -
     not_working = db.query(Breakage).join(Breakage.wobbler).filter(Breakage.flight_id==last_flight.id, Wobbler.status=="not_working").count()
+    working = heap_leaching_pad.number_of_wobblers - not_working
     return {
         'working': working,
         'not_working': not_working
