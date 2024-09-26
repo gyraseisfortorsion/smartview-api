@@ -382,6 +382,13 @@ async def get_efficiency(heap_leaching_pad_id:int, db: Session = Depends(get_db)
     count_wobblers = db.query(Wobbler).filter(Wobbler.heap_leaching_pad_id==heap_leaching_pad_id).count()
     return 1-count_breakages/count_wobblers
 
+@app.post('/api/num_videos/{num}', tags=["07:Per heap leaching pad"])
+def num_videos(num: int):
+    # save the number into txt file
+    with open("num_videos.txt", "w") as f:
+        f.write(str(num))
+    return num
+
 @app.post('/api/load_data', tags=["07:Per heap leaching pad"])
 async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = File(...), db: Session = Depends(get_db)):
     # csv_path = f"./{csv_file.filename}"
@@ -397,30 +404,61 @@ async def load_data(srt_file: UploadFile = File(...), video_file: UploadFile = F
     if not os.path.exists(video_path):
         with open(video_path, "wb") as file:
             file.write(video_file.file.read())
-        
-    detection =  detector.Detector(csv_path, video_path, srt_path)
-    classification = classificator.Detector(video_path, srt_path)
-    print("starting detection")
-    detection.start_detection()
-    print("detection finished")
-    os.system("rm -r videos/dataset/crops")
-    print("classification started")
-    classification.start_classification()
     
-    # remove the files afterwards
-    # os.remove(csv_path)
-    os.remove(video_path)
-    # remove videos/dataset folder
-    os.system("rm -r videos/dataset")
-    # create dataset folder
-    os.system("mkdir videos/dataset")
+    # write the video path to existing file without overwriting
+    with open("video_path.txt", "a") as f:
+        f.write(video_path + "\n")
+    
+    num_lines=0
+    num_videos=0
+    # Step 1: Read the number of lines in video_path.txt
+    video_paths = []
+    if os.path.exists('video_path.txt'):
+        with open('video_path.txt', 'r') as file:
+            lines = file.readlines()
+            num_lines = len(lines)
+            video_paths = [line.strip() for line in lines]
+            print(num_lines)
 
-    try:
-        print("here")
-        create_wobblers_from_json(1, 1, db, 'output.json')
-        print("here2")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # Step 2: Read the number from num_videos.txt
+    if os.path.exists('num_videos.txt'):
+        with open('num_videos.txt', 'r') as file:
+            num_videos = int(file.read().strip())
+            print(num_videos)
+
+    # Step 3: Compare the two numbers and execute the code if they match
+    # print(num_lines, num_videos)
+    if num_lines == num_videos:
+        # Assuming the necessary imports and setup for detector and classificator are done above this code
+        with open("video_path.txt", "w") as f:
+            f.write("")
+        with open("num_videos.txt", "w") as f:
+            f.write("")
+        detection = detector.Detector(csv_path, video_paths, srt_path)
+        classification = classificator.Detector(video_path, srt_path)
+        print("starting detection")
+        detection.start_detection()
+        print("detection finished")
+        os.system("rm -r videos/dataset/crops")
+        print("classification started")
+        classification.start_classification()
+        # remove the files afterwards
+        # os.remove(csv_path)
+        os.remove(video_path)
+        # remove videos/dataset folder
+        os.system("rm -r videos/dataset")
+        # create dataset folder
+        os.system("mkdir videos/dataset")
+        # clean the video_path.txt
+        try:
+            print("here")
+            create_wobblers_from_json(1, 1, db, 'output.json')
+            print("here2")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    else:
+        print("The number of lines in video_path.txt does not match the number in num_videos.txt")
+    
     
     return "success"
 

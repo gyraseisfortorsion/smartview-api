@@ -24,7 +24,7 @@ import requests
 class Detector:
 	
 	def __init__(self, csv_path, video_path, srt_path):
-		self.video_path = video_path
+		self.video_paths = video_path               # should be a list of video names with no .mp4
 		self.srt_path = srt_path
 		# srt_path = video_path + ".SRT"
 		# if not os.path.exists(srt_path):
@@ -420,10 +420,10 @@ class Detector:
 			os.mkdir(folder)
 			print("Directory created successfully!")
 		except FileExistsError:
-  			print("Directory already exists.")
+			print("Directory already exists.")
 		except OSError as e:
-  			print(f"Error creating directory: {e}")
-
+			print(f"Error creating directory: {e}")
+		
 		unique_index = 0
 		# Assuming you have an 800x800 pixel map
 
@@ -439,144 +439,152 @@ class Detector:
 		# Initialize video capture
 		model = YOLO('best.pt')
 
+		# video_paths = [] # List that stores names of the videos  ex. ["DJI_0080", "DJI_0081"]
+
 		# video_path = "DJI_0080.MP4"
-		cap = cv2.VideoCapture(self.video_path)
+		# cap = cv2.VideoCapture(self.video_path)
 
 		# Get the frames per second (fps) of the video
-		fps = cap.get(cv2.CAP_PROP_FPS)
+		# fps = cap.get(cv2.CAP_PROP_FPS)
 		# Calculate the frame interval in frames
-		frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
-		change = 0
+		# frame_interval = round(fps * 0.2)  # 0.2 seconds (200 milliseconds)
+		# change = 0
 		counter = 0
-		mistake_counter =0
-		cumulative_time_difference = 0
-		current_frame_number = 0
+		# mistake_counter =0
+		# cumulative_time_difference = 0
+		# current_frame_number = 0
 
 
 		previous_timestamp = self.timestamps[0] - (self.timestamps[1] - self.timestamps[0])
 		previous_video_time = 0
 		i = 0
-		while cap.isOpened() and i < len(self.timestamps):
 
-			# time_difference = self.timestamps[i] - previous_timestamp
-			# frame_difference = round(time_difference / 1000 * fps)
-			# target_frame_number = current_frame_number + frame_difference
+		for video_path in self.video_paths:
 
-			# while current_frame_number < target_frame_number and cap.isOpened():
-			# 	success, frame = cap.read()
-			# 	if not success:
-			# 		break
-			# 	current_frame_number += 1
+			cap = cv2.VideoCapture(video_path)
 
-			# if not success:
-			# 	break
-			success, frame = cap.read()
+			while cap.isOpened() and i < len(self.timestamps):
 
-			if not success:
-				break
+				# time_difference = self.timestamps[i] - previous_timestamp
+				# frame_difference = round(time_difference / 1000 * fps)
+				# target_frame_number = current_frame_number + frame_difference
 
-			current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) # + previous_video_time
-			time_difference = abs(current_time_ms-self.timestamps[i])
-			# print("time difference: ", time_difference)
+				# while current_frame_number < target_frame_number and cap.isOpened():
+				# 	success, frame = cap.read()
+				# 	if not success:
+				# 		break
+				# 	current_frame_number += 1
 
-			# print(f"{current_time_ms=} {self.timestamps[i]=}")
-			if time_difference < 5 or current_time_ms >= self.timestamps[i]:
-				i += 1
+				# if not success:
+				# 	break
+				success, frame = cap.read()
 
-			if cv2.waitKey(1) & 0xFF == ord('q'):
-				break
+				if not success:
+					break
 
-			datetime_log = self.datetime_logs[i]
+				current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC) + previous_video_time
+				time_difference = abs(current_time_ms-self.timestamps[i])
+				# print("time difference: ", time_difference)
 
-			center = (self.longitudes[i], self.latitudes[i])
-			x_cord, y_cord = self.convert_to_pixel(float(center[0]), float(center[1]),
-									self.left, self.right, self.top, self.bottom)
-			altidute = self.altidutes[i] * 0.3048
+				# print(f"{current_time_ms=} {self.timestamps[i]=}")
+				if time_difference < 5 or current_time_ms >= self.timestamps[i]:
+					i += 1
 
-			diagonal_distance = altidute * fov_tan
-			distance = diagonal_distance / 2
+				if cv2.waitKey(1) & 0xFF == ord('q'):
+					break
 
-			if (self.compass_bearings[i] != 0):
-				bearing = (self.compass_bearings[i]- 90) % 360
+				datetime_log = self.datetime_logs[i]
 
-			# offset = math.atan(videoHeight/videoWidth) * 180 / math.pi
+				center = (self.longitudes[i], self.latitudes[i])
+				x_cord, y_cord = self.convert_to_pixel(float(center[0]), float(center[1]),
+										self.left, self.right, self.top, self.bottom)
+				altidute = self.altidutes[i] * 0.3048
 
-			# Calculate the destination points
-			# top_left = self.rhumb_destination(center, distance, (bearing + offset + 180) % 360 - 180, {'units': 'meters'})
-			# top_left_x, top_left_y = self.convert_to_pixel(float(top_left[0]), float(top_left[1]), self.left, self.right, self.top, self.bottom)
+				diagonal_distance = altidute * fov_tan
+				distance = diagonal_distance / 2
 
-			# top_right = self.rhumb_destination(center, distance, (bearing - offset) % 360 - 180, {'units': 'meters'})
-			# top_right_x, top_right_y = self.convert_to_pixel(float(top_right[0]), float(top_right[1]), self.left, self.right, self.top, self.bottom)
+				if (self.compass_bearings[i] != 0):
+					bearing = (self.compass_bearings[i]- 90) % 360
 
-			# bottom_left = self.rhumb_destination(center, distance, (bearing - offset + 180) % 360 - 180, {'units': 'meters'})
-			# bottom_left_x, bottom_left_y = self.convert_to_pixel(float(bottom_left[0]), float(bottom_left[1]), self.left, self.right, self.top, self.bottom)
+				# offset = math.atan(videoHeight/videoWidth) * 180 / math.pi
 
-			# bottom_right = self.rhumb_destination(center, distance, (bearing + offset) % 360 - 180, {'units': 'meters'})
-			# bottom_right_x, bottom_right_y = self.convert_to_pixel(float(bottom_right[0]), float(bottom_right[1]), self.left, self.right, self.top, self.bottom)
+				# Calculate the destination points
+				# top_left = self.rhumb_destination(center, distance, (bearing + offset + 180) % 360 - 180, {'units': 'meters'})
+				# top_left_x, top_left_y = self.convert_to_pixel(float(top_left[0]), float(top_left[1]), self.left, self.right, self.top, self.bottom)
 
-			results = model.predict(frame, save=False, imgsz=640, conf=0.4, verbose=True, stream=True, half=True, device='cuda')
+				# top_right = self.rhumb_destination(center, distance, (bearing - offset) % 360 - 180, {'units': 'meters'})
+				# top_right_x, top_right_y = self.convert_to_pixel(float(top_right[0]), float(top_right[1]), self.left, self.right, self.top, self.bottom)
 
-			detections = None
+				# bottom_left = self.rhumb_destination(center, distance, (bearing - offset + 180) % 360 - 180, {'units': 'meters'})
+				# bottom_left_x, bottom_left_y = self.convert_to_pixel(float(bottom_left[0]), float(bottom_left[1]), self.left, self.right, self.top, self.bottom)
 
-			for result in results:
-				if not result:
-					continue
-				boxes = result.boxes
-				xywh = boxes.xywh.cpu().numpy()
-				detections = xywh
-				for xywh_c in xywh:
-					x, y, w, h = xywh_c
+				# bottom_right = self.rhumb_destination(center, distance, (bearing + offset) % 360 - 180, {'units': 'meters'})
+				# bottom_right_x, bottom_right_y = self.convert_to_pixel(float(bottom_right[0]), float(bottom_right[1]), self.left, self.right, self.top, self.bottom)
 
-					# frame = cv2.circle(frame, (int(x), int(y)), 5, (255, 0, 0), 10)
+				results = model.predict(frame, save=False, imgsz=640, conf=0.45, verbose=True, stream=True, half=True, device='cuda')
 
-			show_frame = cv2.resize(frame, (800, 600))
-			# cv2.imshow('YOLOv8 Inference', show_frame)
+				detections = None
 
-			if detections is not None:
-				counter+=1
+				for result in results:
+					if not result:
+						continue
+					boxes = result.boxes
+					xywh = boxes.xywh.cpu().numpy()
+					detections = xywh
+					for xywh_c in xywh:
+						x, y, w, h = xywh_c
 
-				for detection in detections:
-					unique_index += 1
-					x_det, y_det, _, _ = detection
+						# frame = cv2.circle(frame, (int(x), int(y)), 5, (255, 0, 0), 10)
 
-					x_gps, y_gps = self.convert_to_gps((x_det, y_det), videoHeight, videoWidth,
-										diagonal_distance, center, bearing, {'units': 'meters'})
+				show_frame = cv2.resize(frame, (800, 600))
+				# cv2.imshow('YOLOv8 Inference', show_frame)
 
-					x_plot, y_plot = self.convert_to_pixel(float(x_gps), float(y_gps), self.left, self.right,
-											self.top, self.bottom)
+				if detections is not None:
+					counter+=1
 
-					final_image = self.draw(final_image, (x_plot, y_plot),(255, 255, 0), 2)
+					for detection in detections:
+						unique_index += 1
+						x_det, y_det, _, _ = detection
 
+						x_gps, y_gps = self.convert_to_gps((x_det, y_det), videoHeight, videoWidth,
+											diagonal_distance, center, bearing, {'units': 'meters'})
 
-					crop_size = 250
-					x_det, y_det, crop_size = int(x_det), int(y_det), int(crop_size)
+						x_plot, y_plot = self.convert_to_pixel(float(x_gps), float(y_gps), self.left, self.right,
+												self.top, self.bottom)
 
-					cropped_image = frame[max(0, int(y_det-250)):min(int(y_det+250), frame.shape[0]),
-									max(0, int(x_det-250)):min(int(x_det+250), frame.shape[1])]
-
-					if (cropped_image.shape[0]>=500 and cropped_image.shape[1]>=500):
-
-						# cv2.imshow("Cropped image:", cropped_image)
-
-						image = np.uint8(cropped_image)
-						image_path = folder+f"{x_gps}_{y_gps}_{unique_index}.jpg"
-						cv2.imwrite(image_path, image)
-
-						if len(gps_points) == 0:
-							# print("No detection")
-							points = []
-							points.append(((x_gps, y_gps), image_path))
-							gps_points.append(points)
-						else:
-							gps_points, image = self.make_average(x_gps, y_gps, gps_points, image_path, datetime_log)
+						final_image = self.draw(final_image, (x_plot, y_plot),(255, 255, 0), 2)
 
 
-			final_image = self.draw(final_image, (x_cord, y_cord),(0, 0, 255), 2)
-			# cv2.imshow("GPS by Pixel", final_image)
+						crop_size = 250
+						x_det, y_det, crop_size = int(x_det), int(y_det), int(crop_size)
 
-			previous_timestamp = self.timestamps[i]
-			previous_video_time = current_time_ms
-			# i += 1
+						cropped_image = frame[max(0, int(y_det-250)):min(int(y_det+250), frame.shape[0]),
+										max(0, int(x_det-250)):min(int(x_det+250), frame.shape[1])]
+
+						if (cropped_image.shape[0]>=500 and cropped_image.shape[1]>=500):
+
+							# cv2.imshow("Cropped image:", cropped_image)
+
+							image = np.uint8(cropped_image)
+							image_path = folder+f"{x_gps}_{y_gps}_{unique_index}.jpg"
+							cv2.imwrite(image_path, image)
+
+							if len(gps_points) == 0:
+								# print("No detection")
+								points = []
+								points.append(((x_gps, y_gps), image_path))
+								gps_points.append(points)
+							else:
+								gps_points, image = self.make_average(x_gps, y_gps, gps_points, image_path, datetime_log)
+
+
+				final_image = self.draw(final_image, (x_cord, y_cord),(0, 0, 255), 2)
+				# cv2.imshow("GPS by Pixel", final_image)
+
+				previous_timestamp = self.timestamps[i]
+			cap.release()
+			previous_video_time = current_time_ms 
+				# i += 1
 
 
 		def ensure_16_frames(video_frames):
